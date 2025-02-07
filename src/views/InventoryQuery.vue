@@ -1,0 +1,412 @@
+<template>
+  <div class="inventory-query">
+    <!-- 搜索过滤区域 -->
+    <el-card class="filter-card">
+      <el-form :inline="true" :model="searchForm" class="search-form">
+        <el-form-item label="商品名称">
+          <el-input v-model="searchForm.name" placeholder="请输入商品名称" clearable />
+        </el-form-item>
+        <el-form-item label="商品类型">
+          <el-select v-model="searchForm.type" placeholder="请选择" clearable>
+            <el-option label="无人机" value="drone" />
+            <el-option label="配件" value="parts" />
+            <el-option label="耗材" value="consumables" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="库存状态">
+          <el-select v-model="searchForm.stockStatus" placeholder="请选择" clearable>
+            <el-option label="充足" value="sufficient" />
+            <el-option label="正常" value="normal" />
+            <el-option label="偏低" value="low" />
+            <el-option label="不足" value="insufficient" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">搜索</el-button>
+          <el-button @click="resetSearch">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <!-- 库存列表 -->
+    <el-card class="list-card">
+      <template #header>
+        <div class="card-header">
+          <h2>库存列表</h2>
+          <div class="header-actions">
+            <el-button type="primary" @click="exportInventory">导出库存</el-button>
+          </div>
+        </div>
+      </template>
+
+      <el-table :data="inventoryList" v-loading="loading" style="width: 100%">
+        <el-table-column prop="code" label="商品编码" width="120" />
+        <el-table-column prop="name" label="商品名称" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="type" label="商品类型" width="120">
+          <template #default="{ row }">
+            <el-tag>{{ row.type }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="quantity" label="当前库存" width="120">
+          <template #default="{ row }">
+            <span :class="getStockClass(row)">{{ row.quantity }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="minQuantity" label="最低库存" width="120" />
+        <el-table-column prop="maxQuantity" label="最高库存" width="120" />
+        <el-table-column prop="location" label="库存位置" width="150" show-overflow-tooltip />
+        <el-table-column prop="lastUpdate" label="最后更新" width="180" sortable />
+        <el-table-column label="操作" width="180" fixed="right">
+          <template #default="{ row }">
+            <el-button 
+              v-if="row.quantity < row.minQuantity"
+              link 
+              type="warning" 
+              @click="applyReplenishment(row)">
+              申请补货
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              @click="viewDetail(row)">
+              详情
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="pagination">
+        <el-pagination
+          v-model:current-page="pagination.currentPage"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="pagination.total"
+          layout="total, sizes, prev, pager, next"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </el-card>
+
+    <!-- 补货申请对话框 -->
+    <el-dialog
+      v-model="replenishmentDialogVisible"
+      title="补货申请"
+      width="600px"
+      destroy-on-close>
+      <el-form
+        ref="replenishmentFormRef"
+        :model="replenishmentForm"
+        :rules="replenishmentRules"
+        label-width="100px">
+        <el-form-item label="商品名称">
+          <el-input v-model="selectedProduct.name" disabled />
+        </el-form-item>
+
+        <el-form-item label="当前库存">
+          <el-input v-model="selectedProduct.quantity" disabled>
+            <template #append>件</template>
+          </el-input>
+        </el-form-item>
+
+        <el-form-item label="最低库存">
+          <el-input v-model="selectedProduct.minQuantity" disabled>
+            <template #append>件</template>
+          </el-input>
+        </el-form-item>
+
+        <el-form-item label="申请数量" prop="quantity">
+          <el-input-number
+            v-model="replenishmentForm.quantity"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+          />
+        </el-form-item>
+
+        <el-form-item label="期望到货日期" prop="expectedDate">
+          <el-date-picker
+            v-model="replenishmentForm.expectedDate"
+            type="date"
+            placeholder="选择日期"
+            :disabled-date="disabledDate"
+            style="width: 100%"
+          />
+        </el-form-item>
+
+        <el-form-item label="补货原因" prop="reason">
+          <el-input
+            v-model="replenishmentForm.reason"
+            type="textarea"
+            :rows="3"
+            placeholder="请说明补货原因"
+          />
+        </el-form-item>
+
+        <el-form-item label="备注说明" prop="remark">
+          <el-input
+            v-model="replenishmentForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入备注说明"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="replenishmentDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitReplenishment" :loading="submitting">
+            提交申请
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+// 状态管理
+const loading = ref(false)
+const replenishmentDialogVisible = ref(false)
+const replenishmentFormRef = ref(null)
+const submitting = ref(false)
+const selectedProduct = ref({})
+
+// 搜索表单
+const searchForm = reactive({
+  name: '',
+  type: '',
+  stockStatus: ''
+})
+
+// 分页配置
+const pagination = reactive({
+  currentPage: 1,
+  pageSize: 10,
+  total: 0
+})
+
+// 库存列表数据
+const inventoryList = ref([])
+
+// 补货申请表单
+const replenishmentForm = reactive({
+  quantity: 1,
+  expectedDate: '',
+  reason: '',
+  remark: ''
+})
+
+// 补货申请表单验证规则
+const replenishmentRules = {
+  quantity: [
+    { required: true, message: '请输入申请数量', trigger: 'blur' },
+    { type: 'number', min: 1, message: '申请数量必须大于0', trigger: 'blur' }
+  ],
+  expectedDate: [
+    { required: true, message: '请选择期望到货日期', trigger: 'change' }
+  ],
+  reason: [
+    { required: true, message: '请输入补货原因', trigger: 'blur' }
+  ]
+}
+
+// 获取库存状态样式
+const getStockClass = (row) => {
+  if (row.quantity <= row.minQuantity) {
+    return 'stock-insufficient'
+  } else if (row.quantity <= row.minQuantity * 1.2) {
+    return 'stock-low'
+  } else if (row.quantity >= row.maxQuantity * 0.8) {
+    return 'stock-sufficient'
+  }
+  return 'stock-normal'
+}
+
+// 搜索方法
+const handleSearch = () => {
+  loadData()
+}
+
+const resetSearch = () => {
+  Object.keys(searchForm).forEach(key => {
+    searchForm[key] = ''
+  })
+  handleSearch()
+}
+
+// 分页方法
+const handleSizeChange = (val) => {
+  pagination.pageSize = val
+  loadData()
+}
+
+const handleCurrentChange = (val) => {
+  pagination.currentPage = val
+  loadData()
+}
+
+// 导出库存
+const exportInventory = () => {
+  ElMessage.success('库存数据导出成功')
+}
+
+// 禁用的日期
+const disabledDate = (time) => {
+  return time.getTime() < Date.now()
+}
+
+// 申请补货
+const applyReplenishment = (row) => {
+  selectedProduct.value = { ...row }
+  replenishmentForm.quantity = Math.max(row.minQuantity - row.quantity, 1)
+  replenishmentDialogVisible.value = true
+}
+
+// 提交补货申请
+const submitReplenishment = async () => {
+  if (!replenishmentFormRef.value) return
+  
+  try {
+    await replenishmentFormRef.value.validate()
+    submitting.value = true
+    
+    // TODO: 实现实际的提交逻辑
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    ElMessage.success('补货申请提交成功')
+    replenishmentDialogVisible.value = false
+    loadData() // 刷新列表数据
+  } catch (error) {
+    ElMessage.error('表单验证失败，请检查必填项')
+  } finally {
+    submitting.value = false
+  }
+}
+
+// 查看详情
+const viewDetail = (row) => {
+  ElMessage('查看详情：' + row.code)
+}
+
+// 加载数据
+const loadData = async () => {
+  loading.value = true
+  try {
+    // TODO: 实现实际的数据加载逻辑
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // 模拟数据
+    inventoryList.value = [
+      {
+        code: 'P001',
+        name: '无人机A型',
+        type: '无人机',
+        quantity: 5,
+        minQuantity: 10,
+        maxQuantity: 50,
+        location: 'A区-01-01',
+        lastUpdate: '2024-01-15 14:30:00'
+      },
+      {
+        code: 'P002',
+        name: '专业航拍镜头',
+        type: '配件',
+        quantity: 20,
+        minQuantity: 15,
+        maxQuantity: 100,
+        location: 'B区-02-03',
+        lastUpdate: '2024-01-15 10:00:00'
+      }
+    ]
+    pagination.total = 20
+  } catch (error) {
+    ElMessage.error('加载数据失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 生命周期钩子
+onMounted(() => {
+  loadData()
+})
+</script>
+
+<style scoped>
+.inventory-query {
+  padding: 20px;
+}
+
+.filter-card {
+  margin-bottom: 20px;
+}
+
+.search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #303133;
+}
+
+.pagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.stock-insufficient {
+  color: #f56c6c;
+  font-weight: bold;
+}
+
+.stock-low {
+  color: #e6a23c;
+  font-weight: bold;
+}
+
+.stock-normal {
+  color: #409eff;
+}
+
+.stock-sufficient {
+  color: #67c23a;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media screen and (max-width: 768px) {
+  .inventory-query {
+    padding: 10px;
+  }
+  
+  .search-form {
+    flex-direction: column;
+  }
+  
+  .search-form .el-form-item {
+    margin-right: 0;
+  }
+}
+</style>
