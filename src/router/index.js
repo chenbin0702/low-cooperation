@@ -281,7 +281,7 @@ export const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHashHistory('/low-cooperation/'),
+  history: createWebHashHistory('./'),
   routes: routes
 })
 
