@@ -1,6 +1,14 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import Layout from '../layout/index.vue'
+import NProgress from 'nprogress'
 import * as Icons from '@element-plus/icons-vue'
+// 配置 NProgress
+NProgress.configure({ 
+  showSpinner: false,  // 是否显示加载微调器
+  easing: 'ease',      // 动画方式
+  speed: 500,          // 速度
+  minimum: 0.3         // 最小百分比
+})
 
 export const routes = [
   {
@@ -273,17 +281,21 @@ export const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
-  routes
+  history: createWebHashHistory('/low-cooperation/'),
+  routes: routes
 })
 
-// 全局路由守卫
+// 路由前置守卫
 router.beforeEach((to, from, next) => {
-  // 设置页面标题
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - 低空经济管理系统`
-  }
+  // 开启进度条
+  NProgress.start()
   next()
+})
+
+// 路由后置守卫
+router.afterEach(() => {
+  // 关闭进度条
+  NProgress.done()
 })
 
 export default router
