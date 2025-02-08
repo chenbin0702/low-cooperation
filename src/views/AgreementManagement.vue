@@ -448,7 +448,6 @@ const loadTemplates = async () => {
   try {
     await new Promise(resolve => setTimeout(resolve, 1000))
     
-    // 更新模拟数据，增加更多实际的协议内容
     templateList.value = [
       {
         id: 1,
@@ -513,7 +512,163 @@ const loadTemplates = async () => {
           }
         ]
       },
-      // ... 其他模板
+      {
+        id: 2,
+        name: '战略合作协议模板',
+        description: '适用于长期战略合作伙伴关系',
+        updateTime: '2024-01-05 09:00:00',
+        version: 'v1.8',
+        hasUpdate: false,
+        sections: [
+          {
+            title: '第一条 战略合作目标',
+            content: `
+              1.1 双方本着"优势互补、互利共赢"的原则开展战略合作。
+              1.2 建立长期稳定的战略合作伙伴关系。
+              1.3 共同开拓市场，提升品牌价值。
+            `,
+            notes: '明确合作愿景和目标'
+          },
+          {
+            title: '第二条 合作领域',
+            content: `
+              2.1 市场开发：共同开发和拓展市场。
+              2.2 品牌建设：共享品牌资源，协同推广。
+              2.3 技术创新：共同研发和技术升级。
+            `,
+            notes: '重点关注合作范围界定'
+          },
+          {
+            title: '第三条 资源共享',
+            content: `
+              3.1 渠道资源共享机制。
+              3.2 客户资源互通规则。
+              3.3 技术资源整合方案。
+            `,
+            notes: '注意资源共享的保密条款'
+          }
+        ],
+        highlights: [
+          {
+            type: 'primary',
+            title: '合作期限',
+            content: '初始合作期限5年，可续约'
+          },
+          {
+            type: 'warning',
+            title: '最低投入',
+            content: '年度市场投入不低于500万元'
+          }
+        ]
+      },
+      {
+        id: 3,
+        name: '代理商协议模板',
+        description: '适用于代理商合作关系',
+        updateTime: '2024-01-10 14:00:00',
+        version: 'v2.3',
+        hasUpdate: true,
+        sections: [
+          {
+            title: '第一条 代理权限',
+            content: `
+              1.1 代理区域：指定行政区域范围。
+              1.2 代理产品：全系列产品代理权。
+              1.3 代理级别：一级代理商资格。
+            `,
+            notes: '明确代理权限范围和限制'
+          },
+          {
+            title: '第二条 销售任务',
+            content: `
+              2.1 年度销售目标：不低于1000万元。
+              2.2 季度任务考核：每季度不低于250万元。
+              2.3 未完成任务的处理方式。
+            `,
+            notes: '销售指标可根据市场情况调整'
+          },
+          {
+            title: '第三条 返利政策',
+            content: `
+              3.1 基础返利：完成基础任务返利5%。
+              3.2 增量返利：超额完成部分返利8%。
+              3.3 返利计算及发放方式。
+            `,
+            notes: '返利政策每年度更新一次'
+          }
+        ],
+        highlights: [
+          {
+            type: 'primary',
+            title: '代理级别',
+            content: '一级代理商，享有区域独家代理权'
+          },
+          {
+            type: 'warning',
+            title: '销售指标',
+            content: '年度销售额1000万，季度250万'
+          },
+          {
+            type: 'success',
+            title: '返利政策',
+            content: '基础返利5%，增量返利8%'
+          }
+        ]
+      },
+      {
+        id: 4,
+        name: '加盟商协议模板',
+        description: '适用于连锁加盟业务',
+        updateTime: '2024-01-15 16:00:00',
+        version: 'v1.5',
+        hasUpdate: false,
+        sections: [
+          {
+            title: '第一条 加盟条件',
+            content: `
+              1.1 加盟费：30万元/家店。
+              1.2 店面要求：面积不少于100平米。
+              1.3 位置要求：商业核心区域。
+            `,
+            notes: '加盟条件可能因城市等级不同而调整'
+          },
+          {
+            title: '第二条 品牌使用',
+            content: `
+              2.1 品牌授权范围。
+              2.2 店面形象要求。
+              2.3 营运规范遵守。
+            `,
+            notes: '严格遵守品牌形象规范'
+          },
+          {
+            title: '第三条 利润分配',
+            content: `
+              3.1 加盟商承担运营成本。
+              3.2 按营业额比例收取管理费。
+              3.3 货品统一采购定价。
+            `,
+            notes: '利润分配方案需遵守当地法规'
+          }
+        ],
+        highlights: [
+          {
+            type: 'danger',
+            title: '加盟费用',
+            content: '初始加盟费30万元/店'
+          },
+          {
+            type: 'warning',
+            title: '场地要求',
+            content: '核心商圈，面积≥100平米'
+          },
+          {
+            type: 'primary',
+            title: '管理费用',
+            content: '营业额3%的持续管理费'
+          }
+        ]
+      }
     ]
   } catch (error) {
     ElMessage.error('加载模板失败')
