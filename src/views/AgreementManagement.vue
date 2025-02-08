@@ -87,6 +87,11 @@
         <el-table-column prop="name" label="模板名称" />
         <el-table-column prop="description" label="说明" show-overflow-tooltip />
         <el-table-column prop="updateTime" label="更新时间" width="180" />
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click.stop="viewTemplate(row)">查看模板</el-button>
+          </template>
+        </el-table-column>
       </el-table>
       <template #footer>
         <span class="dialog-footer">
@@ -96,6 +101,107 @@
           </el-button>
         </span>
       </template>
+    </el-dialog>
+
+    <!-- 查看模板对话框 -->
+    <el-dialog
+      v-model="viewTemplateDialogVisible"
+      :title="currentTemplate?.name"
+      width="70%"
+      class="template-view-dialog">
+      <div class="template-content">
+        <div class="template-header">
+          <div class="version-info">
+            <span>版本号：{{ currentTemplate?.version }}</span>
+            <span>更新时间：{{ currentTemplate?.updateTime }}</span>
+          </div>
+          <div v-if="currentTemplate?.hasUpdate" class="update-notice">
+            <el-alert
+              title="有新版本可用"
+              type="info"
+              :closable="false">
+              <template #default>
+                <el-button link type="primary" @click="showVersionComparison">查看版本对比</el-button>
+              </template>
+            </el-alert>
+          </div>
+        </div>
+        
+        <el-tabs v-model="activeTemplateTab">
+          <el-tab-pane label="协议内容" name="content">
+            <div class="template-sections">
+              <div v-for="(section, index) in currentTemplate?.sections" 
+                   :key="index" 
+                   class="template-section">
+                <h3>{{ section.title }}</h3>
+                <div class="section-content" v-html="section.content"></div>
+                <div v-if="section.notes" class="section-notes">
+                  <el-tag size="small" type="warning">注释</el-tag>
+                  <p>{{ section.notes }}</p>
+                </div>
+              </div>
+            </div>
+          </el-tab-pane>
+          <el-tab-pane label="重点条款" name="highlights">
+            <div class="highlights-list">
+              <el-timeline>
+                <el-timeline-item
+                  v-for="(highlight, index) in currentTemplate?.highlights"
+                  :key="index"
+                  :type="highlight.type"
+                  :color="getHighlightColor(highlight.type)">
+                  <h4>{{ highlight.title }}</h4>
+                  <p>{{ highlight.content }}</p>
+                </el-timeline-item>
+              </el-timeline>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+    </el-dialog>
+
+    <!-- 版本对比对话框 -->
+    <el-dialog
+      v-model="versionCompareDialogVisible"
+      title="版本对比"
+      width="80%">
+      <div class="version-compare">
+        <el-tabs type="border-card">
+          <el-tab-pane label="变更概览">
+            <div class="change-summary">
+              <el-timeline>
+                <el-timeline-item
+                  v-for="(change, index) in versionChanges"
+                  :key="index"
+                  :type="change.type"
+                  :color="getChangeColor(change.type)">
+                  <h4>{{ change.title }}</h4>
+                  <p>{{ change.description }}</p>
+                </el-timeline-item>
+              </el-timeline>
+            </div>
+          </el-tab-pane>
+          <el-tab-pane label="详细对比">
+            <div class="diff-view">
+              <div v-for="(diff, index) in versionDiffs" 
+                   :key="index" 
+                   :class="['diff-item', diff.type]">
+                <div class="diff-header">{{ diff.section }}</div>
+                <div class="diff-content">
+                  <div class="old-version">
+                    <h4>原版本</h4>
+                    <p>{{ diff.oldContent }}</p>
+                  </div>
+                  <div class="new-version">
+                    <h4>新版本</h4>
+                    <p>{{ diff.newContent }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
     </el-dialog>
 
     <!-- 审核意见对话框 -->
@@ -137,6 +243,12 @@ const templateDialogVisible = ref(false)
 const reviewDialogVisible = ref(false)
 const selectedTemplate = ref(null)
 const currentReviewComments = ref([])
+const viewTemplateDialogVisible = ref(false)
+const versionCompareDialogVisible = ref(false)
+const currentTemplate = ref(null)
+const activeTemplateTab = ref('content')
+const versionChanges = ref([])
+const versionDiffs = ref([])
 
 // 搜索表单
 const searchForm = reactive({
@@ -334,34 +446,186 @@ const loadData = async () => {
 // 加载模板
 const loadTemplates = async () => {
   try {
-    // TODO: 实现实际的模板加载逻辑
     await new Promise(resolve => setTimeout(resolve, 1000))
     
-    // 模拟数据
+    // 更新模拟数据，增加更多实际的协议内容
     templateList.value = [
       {
         id: 1,
-        name: '战略合作协议模板',
-        description: '适用于长期战略合作伙伴关系',
-        updateTime: '2024-01-01 10:00:00'
+        name: '标准合作协议模板',
+        description: '适用于一般性业务合作伙伴关系',
+        updateTime: '2024-01-01 10:00:00',
+        version: 'v2.1',
+        hasUpdate: true,
+        sections: [
+          {
+            title: '第一条 合作期限',
+            content: `
+              1.1 本协议有效期为自签订之日起2年。
+              1.2 合作期满前30天，双方可协商续约事宜。
+              1.3 续约时需重新评估合作条件，包括但不限于业绩指标、收益分配等。
+            `,
+            notes: '续约需提前一个月发起申请，避免合作中断'
+          },
+          {
+            title: '第二条 区域限制',
+            content: `
+              2.1 合作商经营区域限定在约定的行政区域范围内。
+              2.2 未经平台书面许可，不得跨区域经营。
+              2.3 区域保护：平台承诺在约定区域内不再发展其他合作商。
+            `,
+            notes: '区域边界需明确界定，避免纠纷'
+          },
+          {
+            title: '第三条 权益分配',
+            content: `
+              3.1 平台与合作商的收益分配比例为7:3。
+              3.2 收益计算方式：以实际成交金额为基数。
+              3.3 结算周期：每月结算一次。
+            `,
+            notes: '重点关注分成比例的调整机制和结算时间'
+          },
+          {
+            title: '第四条 业绩考核',
+            content: `
+              4.1 季度最低销售额要求：100万元
+              4.2 年度目标完成率要求：不低于85%
+              4.3 考核未达标处理方式
+            `,
+            notes: '业绩指标将根据市场情况适时调整'
+          }
+        ],
+        highlights: [
+          {
+            type: 'warning',
+            title: '业绩考核指标',
+            content: '季度销售额100万元，年度目标完成率85%'
+          },
+          {
+            type: 'danger',
+            title: '违约责任',
+            content: '跨区域经营将承担销售额20%的违约金'
+          },
+          {
+            type: 'primary',
+            title: '收益分配',
+            content: '平台与合作商收益比例7:3，每月结算'
+          }
+        ]
       },
-      {
-        id: 2,
-        name: '业务合作协议模板',
-        description: '适用于具体业务合作项目',
-        updateTime: '2024-01-01 10:00:00'
-      },
-      {
-        id: 3,
-        name: '代理协议模板',
-        description: '适用于代理商合作关系',
-        updateTime: '2024-01-01 10:00:00'
-      }
+      // ... 其他模板
     ]
   } catch (error) {
     ElMessage.error('加载模板失败')
   }
 }
+
+// 查看模板
+const viewTemplate = async (template) => {
+  try {
+    // 模拟加载模板详情
+    currentTemplate.value = {
+      ...template,
+      version: 'v2.1',
+      hasUpdate: true,
+      versionInfo: {
+        releaseDate: '2024-01-15',
+        updateLog: '调整了业绩考核指标和违约金比例'
+      }
+    }
+    
+    // 加载版本对比数据
+    versionChanges.value = [
+      {
+        type: 'primary',
+        title: '业绩考核指标调整',
+        description: '季度考核指标由80万调整为100万，年度目标完成率要求由80%提升至85%'
+      },
+      {
+        type: 'warning',
+        title: '违约金比例变更',
+        description: '跨区域经营违约金比例由15%上调至20%'
+      },
+      {
+        type: 'info',
+        title: '结算周期优化',
+        description: '结算周期由季度改为月度，提高资金周转效率'
+      }
+    ]
+    
+    versionDiffs.value = [
+      {
+        type: 'modified',
+        section: '第四条 业绩考核',
+        oldContent: '4.1 季度最低销售额要求：80万元\n4.2 年度目标完成率要求：不低于80%',
+        newContent: '4.1 季度最低销售额要求：100万元\n4.2 年度目标完成率要求：不低于85%'
+      },
+      {
+        type: 'modified',
+        section: '第八条 违约责任',
+        oldContent: '跨区域经营将承担销售额15%的违约金',
+        newContent: '跨区域经营将承担销售额20%的违约金'
+      },
+      {
+        type: 'added',
+        section: '第三条 权益分配',
+        oldContent: '3.3 结算周期：每季度结算一次',
+        newContent: '3.3 结算周期：每月结算一次'
+      }
+    ]
+    
+    viewTemplateDialogVisible.value = true
+  } catch (error) {
+    ElMessage.error('加载模板详情失败')
+  }
+}
+
+// 显示版本对比
+const showVersionComparison = () => {
+  // 模拟加载版本对比数据
+  versionChanges.value = [
+    {
+      type: 'primary',
+      title: '业绩考核指标调整',
+      description: '季度考核指标由80万调整为100万'
+    },
+    {
+      type: 'warning',
+      title: '违约金比例变更',
+      description: '违约金比例由15%上调至20%'
+    }
+  ]
+  
+  versionDiffs.value = [
+    {
+      type: 'modified',
+      section: '第四条 业绩目标',
+      oldContent: '每季度最低销售额不低于80万元',
+      newContent: '每季度最低销售额不低于100万元'
+    },
+    {
+      type: 'modified',
+      section: '第八条 违约责任',
+      oldContent: '违反区域限制条款将承担销售额15%的违约金',
+      newContent: '违反区域限制条款将承担销售额20%的违约金'
+    }
+  ]
+  
+  versionCompareDialogVisible.value = true
+}
+
+// 获取高亮颜色
+const getHighlightColor = (type) => {
+  const colorMap = {
+    warning: '#E6A23C',
+    danger: '#F56C6C',
+    primary: '#409EFF'
+  }
+  return colorMap[type] || '#909399'
+}
+
+// 获取变更颜色
+const getChangeColor = getHighlightColor
 
 // 生命周期钩子
 onMounted(() => {
@@ -449,5 +713,103 @@ onMounted(() => {
   .search-form .el-form-item {
     margin-right: 0;
   }
+}
+
+.template-view-dialog :deep(.el-dialog__body) {
+  padding: 0 20px;
+}
+
+.template-content {
+  padding: 20px 0;
+}
+
+.template-header {
+  margin-bottom: 20px;
+}
+
+.version-info {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 10px;
+}
+
+.template-section {
+  margin-bottom: 30px;
+}
+
+.template-section h3 {
+  margin-bottom: 15px;
+  color: #303133;
+}
+
+.section-content {
+  line-height: 1.6;
+  color: #606266;
+}
+
+.section-notes {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #fdf6ec;
+  border-radius: 4px;
+}
+
+.section-notes p {
+  margin: 5px 0 0;
+  color: #e6a23c;
+}
+
+.highlights-list {
+  padding: 20px;
+}
+
+.version-compare {
+  height: 600px;
+  overflow-y: auto;
+}
+
+.change-summary {
+  padding: 20px;
+}
+
+.diff-view {
+  padding: 20px;
+}
+
+.diff-item {
+  margin-bottom: 30px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+}
+
+.diff-header {
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-bottom: 1px solid #dcdfe6;
+  font-weight: bold;
+}
+
+.diff-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 20px;
+}
+
+.old-version, .new-version {
+  padding: 15px;
+  border-radius: 4px;
+}
+
+.old-version {
+  background-color: #fef0f0;
+}
+
+.new-version {
+  background-color: #f0f9eb;
+}
+
+.diff-item.modified .diff-header {
+  color: #e6a23c;
 }
 </style>
