@@ -106,52 +106,70 @@
     <!-- 查看模板对话框 -->
     <el-dialog
       v-model="viewTemplateDialogVisible"
-      :title="currentTemplate?.name"
-      width="70%"
-      class="template-view-dialog">
-      <div class="template-content">
-        <div class="template-header">
-          <div class="version-info">
-            <span>版本号：{{ currentTemplate?.version }}</span>
-            <span>更新时间：{{ currentTemplate?.updateTime }}</span>
-          </div>
-          <div v-if="currentTemplate?.hasUpdate" class="update-notice">
-            <el-alert
-              title="有新版本可用"
-              type="info"
-              :closable="false">
-              <template #default>
-                <el-button link type="primary" @click="showVersionComparison">查看版本对比</el-button>
-              </template>
-            </el-alert>
-          </div>
+      :title="`${currentTemplate?.name || '模板详情'}`"
+      width="70%">
+      <div class="template-header">
+        <div class="template-basic-info">
+          <span class="version">版本：{{ currentTemplate?.version }}</span>
+          <span class="update-time">更新时间：{{ currentTemplate?.updateTime }}</span>
+          <el-tag v-if="currentTemplate?.hasUpdate" type="warning" size="small">有新版本</el-tag>
         </div>
-        
-        <el-tabs v-model="activeTemplateTab">
-          <el-tab-pane label="协议内容" name="content">
+        <div class="template-description">{{ currentTemplate?.description }}</div>
+      </div>
+
+      <div class="template-content">
+        <el-tabs class="template-detail-tabs">
+          <el-tab-pane label="基本条款">
             <div class="template-sections">
               <div v-for="(section, index) in currentTemplate?.sections" 
                    :key="index" 
-                   class="template-section">
-                <h3>{{ section.title }}</h3>
-                <div class="section-content" v-html="section.content"></div>
-                <div v-if="section.notes" class="section-notes">
-                  <el-tag size="small" type="warning">注释</el-tag>
-                  <p>{{ section.notes }}</p>
+                   class="section-item">
+                <div class="section-header">
+                  <h4>{{ section.title }}</h4>
+                  <el-tooltip 
+                    v-if="section.notes" 
+                    :content="section.notes" 
+                    placement="top">
+                    <el-icon class="note-icon"><InfoFilled /></el-icon>
+                  </el-tooltip>
                 </div>
+                <div class="section-content" v-html="section.content"></div>
               </div>
             </div>
           </el-tab-pane>
-          <el-tab-pane label="重点条款" name="highlights">
-            <div class="highlights-list">
+
+          <el-tab-pane label="重点条款">
+            <div class="highlights-grid">
+              <el-card
+                v-for="(highlight, index) in currentTemplate?.highlights"
+                :key="index"
+                :class="['highlight-card', highlight.type]"
+                shadow="hover">
+                <template #header>
+                  <div class="highlight-header">
+                    <el-icon>
+                      <Warning v-if="highlight.type === 'warning'" />
+                      <CircleCheck v-if="highlight.type === 'success'" />
+                      <InfoFilled v-else />
+                    </el-icon>
+                    <span>{{ highlight.title }}</span>
+                  </div>
+                </template>
+                <div class="highlight-content">{{ highlight.content }}</div>
+              </el-card>
+            </div>
+          </el-tab-pane>
+
+          <el-tab-pane label="修改记录" v-if="currentTemplate?.hasUpdate">
+            <div class="version-changes">
               <el-timeline>
                 <el-timeline-item
-                  v-for="(highlight, index) in currentTemplate?.highlights"
+                  v-for="(change, index) in versionChanges"
                   :key="index"
-                  :type="highlight.type"
-                  :color="getHighlightColor(highlight.type)">
-                  <h4>{{ highlight.title }}</h4>
-                  <p>{{ highlight.content }}</p>
+                  :type="change.type"
+                  :color="getHighlightColor(change.type)">
+                  <h4>{{ change.title }}</h4>
+                  <p>{{ change.description }}</p>
                 </el-timeline-item>
               </el-timeline>
             </div>
@@ -219,13 +237,172 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 新建协议对话框 -->
+    <el-dialog
+      v-model="createDialogVisible"
+      title="新建协议"
+      width="45%">
+      <el-form :model="createForm" label-width="100px">
+        <el-form-item label="协议名称" required>
+          <el-input v-model="createForm.name" placeholder="请输入协议名称" />
+        </el-form-item>
+        
+        <el-form-item label="协议模板" required>
+          <div class="template-select">
+            <el-input
+              v-model="selectedTemplateName"
+              placeholder="点击选择协议模板"
+              readonly
+              @click="showTemplateSelectDialog">
+              <template #suffix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+          </div>
+        </el-form-item>
+
+        <!-- 选择模板后显示模板详情 -->
+        <el-form-item v-if="currentTemplate" label="模板详情">
+          <div class="template-preview-container">
+            <div class="template-info">
+              <div class="info-header">
+                <span class="template-version">版本：{{ currentTemplate.version }}</span>
+                <span class="template-update-time">更新时间：{{ currentTemplate.updateTime }}</span>
+                <el-tag v-if="currentTemplate.hasUpdate" size="small" type="warning">有新版本</el-tag>
+              </div>
+              <div class="template-description">{{ currentTemplate.description }}</div>
+            </div>
+
+            <div class="template-content-wrapper">
+              <div class="template-main-content">
+                <div class="template-sections-scroll">
+                  <div v-for="(section, index) in currentTemplate.sections" 
+                       :key="index" 
+                       class="section-block">
+                    <div class="section-title">
+                      <span>{{ section.title }}</span>
+                      <el-tooltip 
+                        v-if="section.notes" 
+                        :content="section.notes" 
+                        placement="top">
+                        <el-icon class="note-icon"><InfoFilled /></el-icon>
+                      </el-tooltip>
+                    </div>
+                    <div class="section-text" v-html="section.content"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="template-sidebar">
+                <div class="highlights-header">
+                  <el-icon><Star /></el-icon>
+                  <span>重点条款</span>
+                </div>
+                <div class="highlights-scroll">
+                  <div class="highlights-wrapper">
+                    <div
+                      v-for="(highlight, index) in currentTemplate.highlights"
+                      :key="index"
+                      :class="['highlight-block', highlight.type]">
+                      <div class="highlight-block-header">
+                        <el-icon>
+                          <Warning v-if="highlight.type === 'warning'" />
+                          <CircleCheck v-if="highlight.type === 'success'" />
+                          <InfoFilled v-else />
+                        </el-icon>
+                        <span>{{ highlight.title }}</span>
+                      </div>
+                      <div class="highlight-block-content">
+                        {{ highlight.content }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="附加内容">
+          <el-input
+            v-model="createForm.additionalContent"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入协议附加内容" />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="createDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleCreateAgreement">
+            确认创建
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 添加模板选择对话框 -->
+    <el-dialog
+      v-model="templateSelectVisible"
+      title="选择协议模板"
+      width="60%">
+      <div class="template-select-dialog">
+        <el-input
+          v-model="templateSearchKeyword"
+          placeholder="搜索模板"
+          class="template-search">
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        
+        <div class="template-list">
+          <div v-for="template in filteredTemplates"
+               :key="template.id"
+               class="template-item"
+               :class="{ 'is-selected': template.id === tempSelectedTemplate?.id }"
+               @click="selectTemplate(template)">
+            <div class="template-item-header">
+              <div class="template-item-left">
+                <span class="template-name">{{ template.name }}</span>
+                <el-tag size="small" :type="template.hasUpdate ? 'warning' : 'info'" class="version-tag">
+                  {{ template.version }}
+                </el-tag>
+              </div>
+              <el-button 
+                type="primary" 
+                link
+                @click.stop="viewTemplateDetail(template)">
+                查看详情
+              </el-button>
+            </div>
+            <div class="template-description">{{ template.description }}</div>
+            <div class="template-meta">
+              <span>更新时间：{{ template.updateTime }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="templateSelectVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmTemplateSelect">
+            确定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
+import { Search, InfoFilled, Star, Warning, CircleCheck } from '@element-plus/icons-vue'
 
 const router = useRouter()
 
@@ -249,6 +426,12 @@ const currentTemplate = ref(null)
 const activeTemplateTab = ref('content')
 const versionChanges = ref([])
 const versionDiffs = ref([])
+const createDialogVisible = ref(false)
+const createForm = reactive({
+  name: '',
+  templateId: '',
+  additionalContent: ''
+})
 
 // 搜索表单
 const searchForm = reactive({
@@ -267,6 +450,23 @@ const pagination = reactive({
 // 列表数据
 const agreementList = ref([])
 const templateList = ref([])
+
+// 新增模板相关
+const selectedTemplateName = ref('')
+const templateSelectVisible = ref(false)
+const templateSearchKeyword = ref('')
+const tempSelectedTemplate = ref(null)
+
+// 计算属性：过滤后的模板列表
+const filteredTemplates = computed(() => {
+  if (!templateSearchKeyword.value) return templateList.value
+  
+  const keyword = templateSearchKeyword.value.toLowerCase()
+  return templateList.value.filter(template => 
+    template.name.toLowerCase().includes(keyword) ||
+    template.description.toLowerCase().includes(keyword)
+  )
+})
 
 // 获取状态类型
 const getStatusType = (status) => {
@@ -316,12 +516,20 @@ const handleCurrentChange = (val) => {
 
 // 模板选择
 const showTemplateDialog = () => {
-  templateDialogVisible.value = true
+  createDialogVisible.value = true
   loadTemplates()
 }
 
 const handleTemplateSelect = (template) => {
   selectedTemplate.value = template
+}
+
+const handleTemplateChange = (templateId) => {
+  createForm.templateId = templateId
+  const selectedTemplate = templateList.value.find(t => t.id === templateId)
+  if (selectedTemplate) {
+    currentTemplate.value = selectedTemplate
+  }
 }
 
 const createFromTemplate = () => {
@@ -694,7 +902,7 @@ const viewTemplate = async (template) => {
       {
         type: 'primary',
         title: '业绩考核指标调整',
-        description: '季度考核指标由80万调整为100万，年度目标完成率要求由80%提升至85%'
+        description: '季度考核指标由80万调整为100万'
       },
       {
         type: 'warning',
@@ -781,6 +989,44 @@ const getHighlightColor = (type) => {
 
 // 获取变更颜色
 const getChangeColor = getHighlightColor
+
+// 添加创建协议的方法
+const handleCreateAgreement = () => {
+  if (!createForm.name || !createForm.templateId) {
+    ElMessage.warning('请填写必要信息')
+    return
+  }
+  // TODO: 实现创建协议的逻辑
+  ElMessage.success('创建协议成功')
+  createDialogVisible.value = false
+  loadData()
+}
+
+// 新增模板相关方法
+const showTemplateSelectDialog = () => {
+  templateSelectVisible.value = true
+  templateSearchKeyword.value = ''
+}
+
+const selectTemplate = (template) => {
+  tempSelectedTemplate.value = template
+}
+
+const confirmTemplateSelect = () => {
+  if (tempSelectedTemplate.value) {
+    createForm.templateId = tempSelectedTemplate.value.id
+    selectedTemplateName.value = tempSelectedTemplate.value.name
+    currentTemplate.value = tempSelectedTemplate.value
+    templateSelectVisible.value = false
+  } else {
+    ElMessage.warning('请选择一个模板')
+  }
+}
+
+const viewTemplateDetail = (template) => {
+  currentTemplate.value = template
+  viewTemplateDialogVisible.value = true
+}
 
 // 生命周期钩子
 onMounted(() => {
@@ -875,47 +1121,131 @@ onMounted(() => {
 }
 
 .template-content {
-  padding: 20px 0;
+  padding: 20px;
 }
 
 .template-header {
-  margin-bottom: 20px;
+  padding: 0 20px 20px;
+  border-bottom: 1px solid #ebeef5;
 }
 
-.version-info {
+.template-basic-info {
   display: flex;
-  gap: 20px;
-  margin-bottom: 10px;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
 }
 
-.template-section {
-  margin-bottom: 30px;
+.version, .update-time {
+  color: #909399;
+  font-size: 14px;
 }
 
-.template-section h3 {
-  margin-bottom: 15px;
+.template-description {
+  color: #606266;
+  font-size: 14px;
+}
+
+.template-detail-tabs {
+  margin-top: 20px;
+}
+
+.template-sections {
+  padding: 10px;
+}
+
+.section-item {
+  margin-bottom: 20px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.section-item:last-child {
+  margin-bottom: 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.section-header h4 {
+  margin: 0;
+  font-size: 16px;
   color: #303133;
 }
 
+.note-icon {
+  color: #e6a23c;
+  cursor: pointer;
+}
+
 .section-content {
-  line-height: 1.6;
   color: #606266;
+  line-height: 1.6;
+  white-space: pre-line;
 }
 
-.section-notes {
-  margin-top: 10px;
+.highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
   padding: 10px;
-  background-color: #fdf6ec;
-  border-radius: 4px;
 }
 
-.section-notes p {
-  margin: 5px 0 0;
+.highlight-card {
+  transition: all 0.3s;
+}
+
+.highlight-card.warning :deep(.el-card__header) {
+  background-color: #fdf6ec;
   color: #e6a23c;
 }
 
-.highlights-list {
+.highlight-card.danger :deep(.el-card__header) {
+  background-color: #fef0f0;
+  color: #f56c6c;
+}
+
+.highlight-card.primary :deep(.el-card__header) {
+  background-color: #ecf5ff;
+  color: #409eff;
+}
+
+.highlight-card.success :deep(.el-card__header) {
+  background-color: #f0f9eb;
+  color: #67c23a;
+}
+
+.highlight-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.highlight-content {
+  padding: 12px 0;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.version-changes {
   padding: 20px;
+}
+
+:deep(.el-tabs__nav-wrap) {
+  padding: 0 20px;
+}
+
+:deep(.el-tabs__content) {
+  overflow: auto;
+  max-height: 60vh;
 }
 
 .version-compare {
@@ -966,5 +1296,277 @@ onMounted(() => {
 
 .diff-item.modified .diff-header {
   color: #e6a23c;
+}
+
+.template-preview {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 15px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+}
+
+.template-section-preview {
+  margin-bottom: 20px;
+}
+
+.template-section-preview h4 {
+  margin: 0 0 10px;
+  color: #303133;
+}
+
+.template-select {
+  position: relative;
+}
+
+.template-select .el-input {
+  width: 100%;
+}
+
+.template-select .el-input .el-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.template-select-dialog {
+  padding: 20px;
+}
+
+.template-search {
+  margin-bottom: 20px;
+}
+
+.template-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 15px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.template-item {
+  padding: 15px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.template-item:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,.1);
+}
+
+.template-item.is-selected {
+  background-color: #ecf5ff;
+  border-color: #409eff;
+}
+
+.template-item.is-selected::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  border: 16px solid #409eff;
+  border-top-color: transparent;
+  border-left-color: transparent;
+}
+
+.template-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.template-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.template-name {
+  font-weight: 500;
+  color: #303133;
+}
+
+.version-tag {
+  margin-left: 8px;
+}
+
+.template-description {
+  color: #606266;
+  font-size: 14px;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.template-meta {
+  color: #909399;
+  font-size: 12px;
+}
+
+.template-preview-container {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.template-info {
+  padding: 16px;
+  border-bottom: 1px solid #ebeef5;
+  background: #f8f9fa;
+}
+
+.info-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.template-version, .template-update-time {
+  color: #606266;
+  font-size: 13px;
+}
+
+.template-description {
+  color: #303133;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.template-content-wrapper {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  padding: 16px;
+  height: 500px;
+}
+
+.template-main-content {
+  border-right: 1px solid #ebeef5;
+  padding-right: 20px;
+}
+
+.template-sections-scroll {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.template-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.highlights-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #ebeef5;
+  color: #303133;
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.highlights-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.highlights-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.highlight-block {
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s;
+}
+
+.highlight-block:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.highlight-block.warning {
+  border: 1px solid #faecd8;
+}
+
+.highlight-block.danger {
+  border: 1px solid #fde2e2;
+}
+
+.highlight-block.primary {
+  border: 1px solid #d9ecff;
+}
+
+.highlight-block.success {
+  border: 1px solid #e1f3d8;
+}
+
+.highlight-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.highlight-block.warning .highlight-block-header {
+  background-color: #fdf6ec;
+  color: #e6a23c;
+}
+
+.highlight-block.danger .highlight-block-header {
+  background-color: #fef0f0;
+  color: #f56c6c;
+}
+
+.highlight-block.primary .highlight-block-header {
+  background-color: #ecf5ff;
+  color: #409eff;
+}
+
+.highlight-block.success .highlight-block-header {
+  background-color: #f0f9eb;
+  color: #67c23a;
+}
+
+.highlight-block-content {
+  padding: 12px;
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #fff;
+}
+
+/* 美化滚动条 */
+.template-sections-scroll::-webkit-scrollbar,
+.highlights-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.template-sections-scroll::-webkit-scrollbar-thumb,
+.highlights-scroll::-webkit-scrollbar-thumb {
+  background: #e0e3e9;
+  border-radius: 3px;
+}
+
+.template-sections-scroll::-webkit-scrollbar-thumb:hover,
+.highlights-scroll::-webkit-scrollbar-thumb:hover {
+  background: #c0c4cc;
 }
 </style>
