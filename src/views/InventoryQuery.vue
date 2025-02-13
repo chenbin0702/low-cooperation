@@ -161,6 +161,53 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 详情对话框 -->
+    <el-dialog
+      v-model="detailDialogVisible"
+      title="库存详情"
+      width="60%">
+      <el-descriptions
+        :column="2"
+        border>
+        <el-descriptions-item label="商品编码">{{ currentProduct?.code }}</el-descriptions-item>
+        <el-descriptions-item label="商品名称">{{ currentProduct?.name }}</el-descriptions-item>
+        <el-descriptions-item label="商品类型">
+          <el-tag>{{ currentProduct?.type }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="当前库存">
+          <span :class="getStockClass(currentProduct)">{{ currentProduct?.quantity }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="最低库存">{{ currentProduct?.minQuantity }}</el-descriptions-item>
+        <el-descriptions-item label="最高库存">{{ currentProduct?.maxQuantity }}</el-descriptions-item>
+        <el-descriptions-item label="库存位置">{{ currentProduct?.location }}</el-descriptions-item>
+        <el-descriptions-item label="最后更新">{{ currentProduct?.lastUpdate }}</el-descriptions-item>
+      </el-descriptions>
+      <div class="detail-section">
+        <div class="section-header">
+          <h3>出入库记录</h3>
+        </div>
+        <el-table :data="stockHistory" style="width: 100%">
+          <el-table-column label="类型" width="100">
+            <template #default="{ row }">
+              <el-tag :type="getOperationType(row.type)">
+                {{ getOperationText(row.type) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="quantity" label="数量" width="100">
+            <template #default="{ row }">
+              <span :class="{ 'text-red': row.type === 'out', 'text-green': row.type === 'in' }">
+                {{ row.type === 'out' ? '-' : '+' }}{{ row.quantity }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="operator" label="操作人" width="120" />
+          <el-table-column prop="time" label="操作时间" width="180" />
+          <el-table-column prop="remark" label="备注" show-overflow-tooltip />
+        </el-table>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -177,6 +224,9 @@ const replenishmentDialogVisible = ref(false)
 const replenishmentFormRef = ref(null)
 const submitting = ref(false)
 const selectedProduct = ref({})
+const detailDialogVisible = ref(false)
+const currentProduct = ref(null)
+const stockHistory = ref([])
 
 // 搜索表单
 const searchForm = reactive({
@@ -291,8 +341,33 @@ const submitReplenishment = async () => {
 }
 
 // 查看详情
-const viewDetail = (row) => {
-  ElMessage('查看详情：' + row.code)
+const viewDetail = async (row) => {
+  currentProduct.value = row
+  // 模拟加载库存历史数据
+  stockHistory.value = [
+    {
+      type: 'in',
+      quantity: 10,
+      operator: '张三',
+      time: '2024-01-15 10:00:00',
+      remark: '采购入库'
+    },
+    {
+      type: 'out',
+      quantity: 5,
+      operator: '李四',
+      time: '2024-01-14 15:30:00',
+      remark: '销售出库'
+    },
+    {
+      type: 'check',
+      quantity: 15,
+      operator: '王五',
+      time: '2024-01-13 09:00:00',
+      remark: '库存盘点'
+    }
+  ]
+  detailDialogVisible.value = true
 }
 
 // 加载数据
@@ -337,6 +412,49 @@ const loadData = async () => {
 onMounted(() => {
   loadData()
 })
+
+// 计算库存百分比
+const getStockPercentage = (product) => {
+  if (!product) return 0
+  const range = product.maxQuantity - product.minQuantity
+  const current = product.quantity - product.minQuantity
+  return Math.round((current / range) * 100)
+}
+
+// 获取库存状态
+const getStockStatus = (product) => {
+  if (!product) return ''
+  if (product.quantity <= product.minQuantity) return 'exception'
+  if (product.quantity >= product.maxQuantity) return 'success'
+  return ''
+}
+
+// 格式化进度条文字
+const format = (percentage) => {
+  if (percentage < 0) return '库存不足'
+  if (percentage > 100) return '库存充足'
+  return `${percentage}%`
+}
+
+// 获取操作类型样式
+const getOperationType = (type) => {
+  const typeMap = {
+    in: 'success',
+    out: 'danger',
+    check: 'info'
+  }
+  return typeMap[type] || 'info'
+}
+
+// 获取操作类型文本
+const getOperationText = (type) => {
+  const textMap = {
+    in: '入库',
+    out: '出库',
+    check: '盘点'
+  }
+  return textMap[type] || type
+}
 </script>
 
 <style scoped>
@@ -408,5 +526,47 @@ onMounted(() => {
   .search-form .el-form-item {
     margin-right: 0;
   }
+}
+
+.detail-section {
+  margin-top: 20px;
+}
+
+.section-header {
+  margin-bottom: 15px;
+  border-bottom: 1px solid #ebeef5;
+  padding-bottom: 10px;
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #303133;
+}
+
+.stock-status {
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.text-red {
+  color: #f56c6c;
+}
+
+.text-green {
+  color: #67c23a;
+}
+
+:deep(.el-progress-bar__inner) {
+  transition: all 0.3s ease;
+}
+
+:deep(.el-descriptions) {
+  margin-bottom: 20px;
+}
+
+:deep(.el-descriptions__cell) {
+  padding: 12px 20px;
 }
 </style>

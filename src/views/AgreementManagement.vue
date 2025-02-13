@@ -395,6 +395,32 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 提交审核对话框 -->
+    <el-dialog
+      v-model="submitReviewDialogVisible"
+      title="提交审核"
+      width="40%">
+      <el-form :model="reviewForm" label-width="80px">
+        <el-form-item label="审核意见" required>
+          <el-input
+            v-model="reviewForm.comment"
+            type="textarea"
+            :rows="4"
+            placeholder="请填写审核意见..."
+          />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="submitReviewDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmSubmitReview">
+            确认提交
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -551,13 +577,42 @@ const editAgreement = (agreement) => {
   })
 }
 
+// 在 script setup 中添加新的响应式变量
+const submitReviewDialogVisible = ref(false)
+const currentAgreement = ref(null)
+const reviewForm = reactive({
+  comment: ''
+})
+
+// 修改提交审核方法
 const submitForReview = async (agreement) => {
+  currentAgreement.value = agreement
+  submitReviewDialogVisible.value = true
+}
+
+// 添加确认提交审核方法
+const confirmSubmitReview = async () => {
+  if (!reviewForm.comment.trim()) {
+    ElMessage.warning('请填写审核意见')
+    return
+  }
+
   try {
     loading.value = true
     // TODO: 实现实际的提交审核逻辑
     await new Promise(resolve => setTimeout(resolve, 1000))
     
+    // 模拟添加审核记录
+    currentReviewComments.value.unshift({
+      id: Date.now(),
+      reviewer: '提交人',
+      time: new Date().toLocaleString(),
+      content: reviewForm.comment
+    })
+    
     ElMessage.success('提交审核成功')
+    submitReviewDialogVisible.value = false
+    reviewForm.comment = ''
     loadData()
   } catch (error) {
     ElMessage.error('提交审核失败')
@@ -1568,5 +1623,17 @@ onMounted(() => {
 .template-sections-scroll::-webkit-scrollbar-thumb:hover,
 .highlights-scroll::-webkit-scrollbar-thumb:hover {
   background: #c0c4cc;
+}
+
+.el-dialog__body {
+  padding: 20px 25px;
+}
+
+.el-form-item__content {
+  width: 100%;
+}
+
+.el-textarea {
+  width: 100%;
 }
 </style>
